@@ -44,6 +44,15 @@ function parseSrt(text) {
     return {id:Date.now()+i,start:toSeconds(a),end:toSeconds(b),text:lines.slice(lines.indexOf(time)+1).join(' ').trim()};
   }).filter(Boolean);
 }
+function getYouTubeId(value) {
+  try {
+    const u = new URL(value.trim());
+    let id = '';
+    if (u.hostname === 'youtu.be' || u.hostname.endsWith('.youtu.be')) id = u.pathname.split('/').filter(Boolean)[0] || '';
+    else if (u.hostname === 'youtube.com' || u.hostname.endsWith('.youtube.com')) id = u.searchParams.get('v') || u.pathname.match(/\/(?:shorts|embed|live)\/([^/?]+)/)?.[1] || '';
+    return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : '';
+  } catch { return ''; }
+}
 function App() {
   const [tab,setTab] = useState('cutter');
   const [file,setFile] = useState(null), [videoUrl,setVideoUrl] = useState('');
@@ -80,17 +89,12 @@ function App() {
     inputRef.current?.click();
   }
   function previewYouTube() {
-    try {
-      const u=new URL(youtubeLink.trim());
-      let id='';
-      if(u.hostname==='youtu.be'||u.hostname.endsWith('.youtu.be')) id=u.pathname.split('/').filter(Boolean)[0]||'';
-      else if(u.hostname.includes('youtube.com')) id=u.searchParams.get('v')||u.pathname.match(/\/(?:shorts|embed|live)\/([^/?]+)/)?.[1]||'';
-      if(!/^[A-Za-z0-9_-]{11}$/.test(id)) throw new Error('Paste a valid YouTube video URL.');
-      const from=Math.max(0,Math.floor(Number(youtubeStart)||0));
-      const to=Math.max(0,Math.floor(Number(youtubeEnd)||0));
-      if(to&&to<=from) throw new Error('End time must be later than start time.');
-      setYoutubeId(id);setYoutubeStart(String(from));setYoutubeEnd(String(to||from+30));setError('');
-    } catch(e) { setError(e.message||'Enter a valid YouTube URL.'); }
+    const id = getYouTubeId(youtubeLink);
+    if (!id) { setYoutubeId(''); setError('Paste a valid YouTube video URL.'); return; }
+    const from=Math.max(0,Math.floor(Number(youtubeStart)||0));
+    const to=Math.max(0,Math.floor(Number(youtubeEnd)||0));
+    if(to&&to<=from) { setError('End time must be later than start time.'); return; }
+    setYoutubeId(id);setYoutubeStart(String(from));setYoutubeEnd(String(to||from+30));setError('');
   }
   async function loadVideoLink() {
     const raw=videoLink.trim();
@@ -240,7 +244,7 @@ function App() {
       {tab==='cutter'&&<><section className="steps"><div className="step active-step"><span>01</span><div><b>Import</b><small>Choose a video</small></div></div><div className="step-line"/><div className={file?'step active-step':'step'}><span>02</span><div><b>Trim</b><small>Pick your moment</small></div></div><div className="step-line"/><div className={outputUrl?'step active-step':'step'}><span>03</span><div><b>Export</b><small>Save your clip</small></div></div></section>
         <section className="workspace-grid"><div className="editor-card"><div className="card-head"><div><div className="card-kicker">01 — SOURCE VIDEO</div><h2>Bring your video</h2></div>{file&&<button className="change-file" onClick={()=>inputRef.current?.click()}><FolderOpen size={15}/> Change</button>}</div><input ref={inputRef} className="hidden-input" type="file" accept="video/*" onChange={e=>chooseFile(e.target.files?.[0])}/>{!file?<><button className="dropzone" onClick={()=>inputRef.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();chooseFile(e.dataTransfer.files?.[0]);}}><span className="upload-icon"><Upload size={23}/></span><strong>Drop your video here</strong><span>or <u>browse files</u> from your device</span><small>MP4, MOV, WEBM · Up to 1 GB</small></button><div className="link-import"><div className="link-import-label">OR PASTE A DIRECT VIDEO LINK</div><div className="link-import-row"><input aria-label="Direct video URL" type="url" placeholder="https://example.com/video.mp4" value={videoLink} onChange={e=>setVideoLink(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')loadVideoLink();}}/><button className="change-file" onClick={loadVideoLink} disabled={linkLoading}>{linkLoading?<LoaderCircle className="spin" size={14}/>:<Video size={14}/>} {linkLoading?'Loading…':'Load link'}</button></div><small>Direct video-file URLs only. The host must allow browser access.</small></div><div className="youtube-import">
           <div className="link-import-label">OR PREVIEW A YOUTUBE VIDEO</div>
-          <div className="link-import-row"><input aria-label="YouTube video URL" type="url" placeholder="https://www.youtube.com/watch?v=…" value={youtubeLink} onChange={e=>setYoutubeLink(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')previewYouTube();}}/><button className="change-file" onClick={previewYouTube}><Play size={14}/> Preview</button></div>
+          <div className="link-import-row"><input aria-label="YouTube video URL" type="url" placeholder="https://www.youtube.com/watch?v=…" value={youtubeLink} onChange={e=>{const value=e.target.value;setYoutubeLink(value);const id=getYouTubeId(value);setYoutubeId(id);if(!id)setError('');}} onKeyDown={e=>{if(e.key==='Enter')previewYouTube();}}/><button className="change-file" onClick={previewYouTube}><Play size={14}/> Preview</button></div>
           <div className="youtube-times"><label>START (SECONDS)<input type="number" min="0" value={youtubeStart} onChange={e=>setYoutubeStart(e.target.value)}/></label><label>END (SECONDS)<input type="number" min="1" value={youtubeEnd} onChange={e=>setYoutubeEnd(e.target.value)}/></label></div>
           {youtubeId&&<><div className="youtube-preview"><iframe title="YouTube video preview" src={`https://www.youtube-nocookie.com/embed/${youtubeId}?start=${Math.max(0,Math.floor(Number(youtubeStart)||0))}&end=${Math.max(0,Math.floor(Number(youtubeEnd)||0))}&rel=0`} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowFullScreen referrerPolicy="strict-origin-when-cross-origin"/></div><button className="youtube-source-button" onClick={selectYoutubeSource}><Scissors size={14}/> Create this clip from my video file</button></>}
           <small>For export, select the original video file you own or are authorized to edit. ClipMax applies your chosen start/end times locally.</small>
