@@ -58,6 +58,7 @@ function App() {
   const [file,setFile] = useState(null), [videoUrl,setVideoUrl] = useState('');
   const [videoLink,setVideoLink] = useState(''), [linkLoading,setLinkLoading] = useState(false);
   const [youtubeLink,setYoutubeLink] = useState(''), [youtubeId,setYoutubeId] = useState('');
+  const [sourceUrl,setSourceUrl] = useState(''), [sourceStatus,setSourceStatus] = useState('Paste a public video link to check whether ClipMax can access it.');
   const [youtubeStart,setYoutubeStart] = useState('0'), [youtubeEnd,setYoutubeEnd] = useState('30');
   const [applyYoutubeRange,setApplyYoutubeRange] = useState(false);
   const [duration,setDuration] = useState(0), [start,setStart] = useState('0'), [end,setEnd] = useState('');
@@ -89,16 +90,16 @@ function App() {
     setApplyYoutubeRange(true);
     inputRef.current?.click();
   }
-  function previewYouTube() {
-    const id = getYouTubeId(youtubeLink);
+  function previewYouTube(value) {
+    const id = getYouTubeId(value ?? youtubeLink);
     if (!id) { setYoutubeId(''); setError('Paste a valid YouTube video URL.'); return; }
     const from=Math.max(0,Math.floor(Number(youtubeStart)||0));
     const to=Math.max(0,Math.floor(Number(youtubeEnd)||0));
     if(to&&to<=from) { setError('End time must be later than start time.'); return; }
     setYoutubeId(id);setYoutubeStart(String(from));setYoutubeEnd(String(to||from+30));setError('');
   }
-  async function loadVideoLink() {
-    const raw=videoLink.trim();
+  async function loadVideoLink(value) {
+    const raw=(value ?? videoLink).trim();
     if(!raw){setError('Paste a direct video file URL first.');return;}
     let parsed;
     try{parsed=new URL(raw);if(!['http:','https:'].includes(parsed.protocol))throw new Error();}
@@ -122,6 +123,34 @@ function App() {
         ? 'Could not read that link. The host may block browser access (CORS), or it may not be a direct video-file URL. Try a direct MP4/WebM link from a host that allows access.'
         : (e.message||'Could not load that video link.'));
     }finally{setLinkLoading(false);}
+  }
+  async function handleSourceUrl() {
+    const raw=sourceUrl.trim();
+    if(!raw){setSourceStatus('Paste a video link first.');return;}
+    let parsed;
+    try{parsed=new URL(raw);if(!['http:','https:'].includes(parsed.protocol))throw new Error();}
+    catch{setSourceStatus('That link is not a valid web URL.');return;}
+    const host=parsed.hostname.toLowerCase().replace(/^www\./,'');
+    if(getYouTubeId(raw)){
+      setYoutubeLink(raw);previewYouTube(raw);
+      setSourceStatus('YouTube link recognised. Preview is available, but YouTube does not provide this app with the downloadable source video. To make clips, use an authorized video file or a direct video-file link.');
+      return;
+    }
+    const platforms=[
+      ['Instagram',/instagram\.com$/],['TikTok',/tiktok\.com$/],['Facebook',/(facebook\.com|fb\.watch)$/],
+      ['X',/(x\.com|twitter\.com)$/],['Vimeo',/vimeo\.com$/],['Twitch',/twitch\.tv$/]
+    ];
+    const platform=platforms.find(([,re])=>re.test(host));
+    if(platform){
+      setYoutubeId('');setSourceStatus(platform[0]+' link recognised. This platform does not provide a general authorized video-file feed to this app. Export your own video from that platform, or use an authorized direct MP4/WebM link.');
+      return;
+    }
+    if(/\.(mp4|mov|webm|m4v|ogv)(?:$|\?)/i.test(parsed.pathname+parsed.search)){
+      setSourceStatus('Direct video file detected. Trying to load it…');
+      await loadVideoLink(raw);
+      return;
+    }
+    setSourceStatus('Link received, but it is not a recognised direct video file or supported preview link. Try a direct MP4/WebM URL or import a video you own.');
   }
   async function loadEngine() {
     if(ffmpegRef.current?.loaded)return ffmpegRef.current;
@@ -274,7 +303,12 @@ function App() {
       <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> {nav.find(x=>x[0]===tab)?.[1]}</div><div className="top-right"><span className="free-pill"><span/> FREE-FIRST</span><div className="avatar">C</div></div></header>
       <section className="page-heading"><div><div className="eyebrow"><span className="eyebrow-line"/> YOUR CREATIVE WORKSPACE</div><h1>Make every moment <span>count.</span></h1><p>One local-first studio for clips, captions and creator workflows.</p></div><div className="heading-spark"><Sparkles size={25}/></div></section>
       {error&&<div className="alert"><X size={17}/>{error}<button onClick={()=>setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
-      {tab==='cutter'&&<><section className="steps"><div className="step active-step"><span>01</span><div><b>Import</b><small>Choose a video</small></div></div><div className="step-line"/><div className={file?'step active-step':'step'}><span>02</span><div><b>Trim</b><small>Pick your moment</small></div></div><div className="step-line"/><div className={outputUrl?'step active-step':'step'}><span>03</span><div><b>Export</b><small>Save your clip</small></div></div></section>
+      {tab==='cutter'&&<><section className="link-first-panel">
+        <div className="link-first-copy"><div className="eyebrow"><span className="eyebrow-line"/> CLIPMAX LINK STUDIO</div><h2>Turn a video into <span>shorts.</span></h2><p>Paste a video URL to check the source. For supported video files, ClipMax can create vertical MP4 clips on your device.</p></div>
+        <div className="universal-link-row"><input aria-label="Paste social media or video URL" type="url" placeholder="Paste YouTube, Instagram, TikTok or direct video link…" value={sourceUrl} onChange={e=>setSourceUrl(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleSourceUrl();}}/><button className="export-button" onClick={handleSourceUrl} disabled={linkLoading}>{linkLoading?<LoaderCircle className="spin" size={17}/>:<Sparkles size={17}/>} Check link</button></div>
+        <div className="source-status"><span className="status-dot"/>{sourceStatus}</div>
+        <div className="link-feature-row"><span><Check size={14}/> 9:16 vertical output</span><span><Check size={14}/> 5–10 clips</span><span><Check size={14}/> 30 sec target</span><span><LockKeyhole size={14}/> Local processing</span></div>
+      </section><section className="steps"><div className="step active-step"><span>01</span><div><b>Import</b><small>Choose a video</small></div></div><div className="step-line"/><div className={file?'step active-step':'step'}><span>02</span><div><b>Trim</b><small>Pick your moment</small></div></div><div className="step-line"/><div className={outputUrl?'step active-step':'step'}><span>03</span><div><b>Export</b><small>Save your clip</small></div></div></section>
         <section className="workspace-grid"><div className="editor-card"><div className="card-head"><div><div className="card-kicker">01 — SOURCE VIDEO</div><h2>Bring your video</h2></div>{file&&<button className="change-file" onClick={()=>inputRef.current?.click()}><FolderOpen size={15}/> Change</button>}</div><input ref={inputRef} className="hidden-input" type="file" accept="video/*" onChange={e=>chooseFile(e.target.files?.[0])}/>{!file?<><button className="dropzone" onClick={()=>inputRef.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();chooseFile(e.dataTransfer.files?.[0]);}}><span className="upload-icon"><Upload size={23}/></span><strong>Drop your video here</strong><span>or <u>browse files</u> from your device</span><small>MP4, MOV, WEBM · Up to 1 GB</small></button><div className="link-import"><div className="link-import-label">OR PASTE A DIRECT VIDEO LINK</div><div className="link-import-row"><input aria-label="Direct video URL" type="url" placeholder="https://example.com/video.mp4" value={videoLink} onChange={e=>setVideoLink(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')loadVideoLink();}}/><button className="change-file" onClick={loadVideoLink} disabled={linkLoading}>{linkLoading?<LoaderCircle className="spin" size={14}/>:<Video size={14}/>} {linkLoading?'Loading…':'Load link'}</button></div><small>Direct video-file URLs only. The host must allow browser access.</small></div><div className="youtube-import">
           <div className="link-import-label">OR PREVIEW A YOUTUBE VIDEO</div>
           <div className="link-import-row"><input aria-label="YouTube video URL" type="url" placeholder="https://www.youtube.com/watch?v=…" value={youtubeLink} onChange={e=>{const value=e.target.value;setYoutubeLink(value);const id=getYouTubeId(value);setYoutubeId(id);if(!id)setError('');}} onKeyDown={e=>{if(e.key==='Enter')previewYouTube();}}/><button className="change-file" onClick={previewYouTube}><Play size={14}/> Preview</button></div>
