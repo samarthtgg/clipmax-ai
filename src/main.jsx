@@ -205,33 +205,6 @@ function App() {
       const count=Math.ceil(duration/30);
       if(count>240){throw new Error('This browser version limits one-hour-plus projects to 240 clips per batch.');}
       const maxStart=Math.max(0,duration-30);
-      const sourceVideo=videoRef.current;
-      const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
-      canvas.width=96;canvas.height=54;
-      const originalTime=sourceVideo?.currentTime||0,samples=[];let previous=null;
-      if(sourceVideo&&sourceVideo.readyState>=2){
-        setStatus('Analysing visual activity to find candidate moments…');
-        const step=Math.max(1,duration/70);
-        for(let t=0;t<duration;t+=step){
-          if(Math.abs(sourceVideo.currentTime-t)>0.08){
-            sourceVideo.currentTime=t;
-            await new Promise(resolve=>{
-              let done=false;const finish=()=>{if(done)return;done=true;sourceVideo.removeEventListener('seeked',finish);resolve();};
-              sourceVideo.addEventListener('seeked',finish,{once:true});setTimeout(finish,1400);
-            });
-          }
-          try{
-            ctx.drawImage(sourceVideo,0,0,96,54);
-            const pixels=ctx.getImageData(0,0,96,54).data;let score=0;
-            if(previous){
-              for(let p=0;p<pixels.length;p+=16)score+=Math.abs(pixels[p]-previous[p])+Math.abs(pixels[p+1]-previous[p+1])+Math.abs(pixels[p+2]-previous[p+2]);
-              score/=pixels.length/16;
-            }
-            samples.push({time:t,score});previous=new Uint8ClampedArray(pixels);
-          }catch{break;}
-        }
-        sourceVideo.currentTime=Math.min(originalTime,Math.max(0,duration-0.1));
-      }
       const starts=Array.from({length:count},(_,i)=>i*30);
       setHighlights(starts.map((start,i)=>({id:i+1,start,end:Math.min(duration,start+30),score:0})));
       const results=[];
