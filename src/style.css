@@ -11,3 +11,8 @@
 .import-srt{position:relative;overflow:hidden;cursor:pointer}.import-srt input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 
 .analysis-video{position:fixed;width:2px;height:2px;opacity:0;pointer-events:none;left:-10px;top:-10px}
+
+
+/* Direct video URL import */
+.link-import{margin-top:18px;padding:15px;border:1px solid #292c3e;border-radius:9px;background:#10131e}.link-import-label{font-size:8px;letter-spacing:1.2px;color:#9b83e5;font-weight:700;margin-bottom:9px}.link-import-row{display:flex;gap:8px}.link-import-row input{flex:1;min-width:0;background:#191c2a;border:1px solid #303346;border-radius:7px;color:#f1eff8;padding:10px;font-size:10px;outline:none}.link-import-row input:focus{border-color:#9878e8}.link-import-row input::placeholder{color:#656a7d}.link-import-row button:disabled{opacity:.5;cursor:wait}.link-import>small{display:block;color:#777b8e;font-size:9px;line-height:1.5;margin-top:9px}
+@media(max-width:420px){.link-import-row{flex-direction:column}.link-import-row button{justify-content:center}}
