@@ -41,11 +41,14 @@ function App() {
   const ffmpegRef = useRef(null);
 
   useEffect(() => {
-    return () => {
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
-      if (outputUrl) URL.revokeObjectURL(outputUrl);
-    };
-  }, [videoUrl, outputUrl]);
+    if (!videoUrl) return;
+    return () => URL.revokeObjectURL(videoUrl);
+  }, [videoUrl]);
+
+  useEffect(() => {
+    if (!outputUrl) return;
+    return () => URL.revokeObjectURL(outputUrl);
+  }, [outputUrl]);
 
   function chooseFile(nextFile) {
     setError('');
@@ -123,7 +126,7 @@ function App() {
         '-movflags', '+faststart', outputFile
       ]);
       const data = await ffmpeg.readFile(outputFile);
-      const blob = new Blob([data.buffer], { type: 'video/mp4' });
+      const blob = new Blob([data], { type: 'video/mp4' });
       const url = URL.createObjectURL(blob);
       setOutputUrl(url);
       setOutputName(`${file.name.replace(/\.[^.]+$/, '')}-clip.mp4`);
