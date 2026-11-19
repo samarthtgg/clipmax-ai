@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
-import { pipeline, env } from '@huggingface/transformers';
 import {
   Aperture, ArrowDownToLine, Captions, Check, Clapperboard, Film,
   FolderOpen, Gauge, LoaderCircle, LockKeyhole, MonitorUp, Pause,
@@ -116,7 +115,7 @@ function App() {
       canvas.width=96;canvas.height=54;
       const step=Math.max(1,duration/90), samples=[];let previous=null;
       for(let t=0;t<duration;t+=step){
-        v.currentTime=t; await new Promise(resolve=>{const done=()=>{v.removeEventListener('seeked',done);resolve();};v.addEventListener('seeked',done,{once:true});});
+        if(Math.abs(v.currentTime-t)>0.05){v.currentTime=t;await new Promise(resolve=>{let settled=false;const done=()=>{if(settled)return;settled=true;v.removeEventListener('seeked',done);resolve();};v.addEventListener('seeked',done,{once:true});setTimeout(done,1200);});}
         ctx.drawImage(v,0,0,96,54);const pixels=ctx.getImageData(0,0,96,54).data;
         let diff=0;
         if(previous){for(let i=0;i<pixels.length;i+=16)diff+=Math.abs(pixels[i]-previous[i])+Math.abs(pixels[i+1]-previous[i+1])+Math.abs(pixels[i+2]-previous[i+2]);diff/=pixels.length/16;}
@@ -144,6 +143,7 @@ function App() {
       const decoded=await audioContext.decodeAudioData(audio.buffer.slice(0));
       const samples=decoded.getChannelData(0);await audioContext.close();
       if(!asrRef.current){
+        const { pipeline, env } = await import('@huggingface/transformers');
         env.allowLocalModels=false;
         asrRef.current=await pipeline('automatic-speech-recognition',MODEL_ID,{
           dtype:'q8',device:'wasm',
