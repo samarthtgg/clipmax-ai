@@ -55,7 +55,7 @@ function App() {
   const [transcribing,setTranscribing] = useState(false), [modelProgress,setModelProgress] = useState('');
   const [recording,setRecording] = useState(false), [recordSeconds,setRecordSeconds] = useState(0);
   const [recordedUrl,setRecordedUrl] = useState('');
-  const inputRef=useRef(null), videoRef=useRef(null), ffmpegRef=useRef(null), asrRef=useRef(null);
+  const inputRef=useRef(null), videoRef=useRef(null), analysisVideoRef=useRef(null), ffmpegRef=useRef(null), asrRef=useRef(null);
   const mediaRecorderRef=useRef(null), streamRef=useRef(null), chunksRef=useRef([]);
 
   useEffect(()=>{ if(!videoUrl)return; return ()=>URL.revokeObjectURL(videoUrl); },[videoUrl]);
@@ -108,10 +108,10 @@ function App() {
     finally {if(ff&&inputName)await ff.deleteFile(inputName).catch(()=>{});if(ff)await ff.deleteFile(outputFile).catch(()=>{});setBusy(false);}
   }
   async function detectHighlights() {
-    if(!file||!videoRef.current)return;
+    if(!file||!analysisVideoRef.current)return;
     setBusy(true);setError('');setStatus('Scanning video frames on this device…');
     try {
-      const v=videoRef.current, canvas=document.createElement('canvas'), ctx=canvas.getContext('2d',{willReadFrequently:true});
+      const v=analysisVideoRef.current, canvas=document.createElement('canvas'), ctx=canvas.getContext('2d',{willReadFrequently:true});
       canvas.width=96;canvas.height=54;
       const step=Math.max(1,duration/90), samples=[];let previous=null;
       for(let t=0;t<duration;t+=step){
@@ -185,6 +185,7 @@ function App() {
       <div className="sidebar-bottom"><div className="privacy-card"><LockKeyhole size={17}/><div><strong>Your videos stay yours</strong><p>Video and audio analysis runs on your device. The speech model downloads from Hugging Face.</p></div></div><div className="version">CLIPMAX AI <span>v1.1 · LOCAL STUDIO</span></div></div>
     </aside>
     <main className="main-content">
+      {videoUrl&&<video ref={analysisVideoRef} className="analysis-video" src={videoUrl} muted playsInline preload="auto"/>}
       <header className="topbar"><div className="breadcrumb">Workspace <span>/</span> {nav.find(x=>x[0]===tab)?.[1]}</div><div className="top-right"><span className="free-pill"><span/> FREE-FIRST</span><div className="avatar">C</div></div></header>
       <section className="page-heading"><div><div className="eyebrow"><span className="eyebrow-line"/> YOUR CREATIVE WORKSPACE</div><h1>Make every moment <span>count.</span></h1><p>One local-first studio for clips, captions and creator workflows.</p></div><div className="heading-spark"><Sparkles size={25}/></div></section>
       {error&&<div className="alert"><X size={17}/>{error}<button onClick={()=>setError('')} aria-label="Dismiss"><X size={14}/></button></div>}
