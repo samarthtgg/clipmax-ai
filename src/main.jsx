@@ -202,7 +202,8 @@ function App() {
       const ext=(file.name.split('.').pop()||'mp4').toLowerCase().replace(/[^a-z0-9]/g,'')||'mp4';
       inputName='clipmax-auto-source.'+ext;
       await ff.writeFile(inputName,await fetchFile(file));
-      const count=Math.min(10,Math.max(5,Number(clipCount)||5));
+      const count=Math.ceil(duration/30);
+      if(count>240){throw new Error('This browser version limits one-hour-plus projects to 240 clips per batch.');}
       const maxStart=Math.max(0,duration-30);
       const sourceVideo=videoRef.current;
       const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d',{willReadFrequently:true});
@@ -231,25 +232,13 @@ function App() {
         }
         sourceVideo.currentTime=Math.min(originalTime,Math.max(0,duration-0.1));
       }
-      const ranked=samples.filter(x=>x.time>2&&x.time<duration-2).sort((a,b)=>b.score-a.score);
-      const picked=[];
-      const separation=Math.max(12,duration/(count*2.2));
-      for(const item of ranked){
-        if(picked.every(p=>Math.abs(p.time-item.time)>=separation))picked.push(item);
-        if(picked.length===count)break;
-      }
-      let starts=picked.map(p=>Math.min(maxStart,Math.max(0,p.time-15))).sort((a,b)=>a-b);
-      if(starts.length<count){
-        const evenly=Array.from({length:count},(_,i)=>Math.round((maxStart*i/Math.max(1,count-1))*10)/10);
-        for(const t of evenly){if(starts.length>=count)break;if(starts.every(x=>Math.abs(x-t)>2))starts.push(t);}
-        starts.sort((a,b)=>a-b);
-      }
-      starts=starts.slice(0,count);
-      setHighlights(starts.map((start,i)=>({id:i+1,start,end:Math.min(duration,start+30),score:picked[i]?.score||0})));
+      const starts=Array.from({length:count},(_,i)=>i*30);
+      setHighlights(starts.map((start,i)=>({id:i+1,start,end:Math.min(duration,start+30),score:0})));
       const results=[];
       for(let i=0;i<starts.length;i++){
         const out='clipmax-short-'+(i+1)+'.mp4';
-        const args=['-ss',String(starts[i]),'-i',inputName,'-t','30','-map','0:v:0','-map','0:a?'];
+        const clipDuration=Math.min(30,duration-starts[i]);
+        const args=['-ss',String(starts[i]),'-i',inputName,'-t',String(clipDuration),'-map','0:v:0','-map','0:a?'];
         if(ratio==='9:16')args.push('-vf','scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920');
         else if(ratio==='1:1')args.push('-vf','scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080');
         else if(ratio==='16:9')args.push('-vf','scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080');
@@ -257,11 +246,11 @@ function App() {
         setStatus('Creating short clip '+(i+1)+' of '+count+'…');
         await ff.exec(args);
         const data=await ff.readFile(out);
-        results.push({id:i+1,start:starts[i],url:URL.createObjectURL(new Blob([data],{type:'video/mp4'})),name:'clipmax-short-'+(i+1)+'.mp4'});
+        results.push({id:i+1,start:starts[i],url:URL.createObjectURL(new Blob([data],{type:'video/mp4'})),name:'clipmax-part-'+String(i+1).padStart(3,'0')+'.mp4'});
         await ff.deleteFile(out).catch(()=>{});
         setProgress(Math.round((i+1)/count*100));
       }
-      setGeneratedClips(results);setStatus(count+' short clips are ready');
+      setGeneratedClips(results);setStatus(count+' consecutive 30-second clips are ready');
     }catch(e){setError(e.message||'Could not generate the short clips. Try a smaller video.');setStatus('Clip generation did not finish');}
     finally{if(ff&&inputName)await ff.deleteFile(inputName).catch(()=>{});setBusy(false);}
   }
