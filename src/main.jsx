@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
+import JSZip from 'jszip';
 import { fetchFile, toBlobURL } from '@ffmpeg/util';
 import {
   Aperture, ArrowDownToLine, Captions, Check, Clapperboard, Film,
@@ -295,6 +296,23 @@ function App() {
   }
   function stopRecording(){if(mediaRecorderRef.current?.state==='recording')mediaRecorderRef.current.stop();}
   function useRecording(){if(!recordedUrl)return;fetch(recordedUrl).then(r=>r.blob()).then(b=>chooseFile(new File([b],'clipmax-recording.webm',{type:'video/webm'})));setRecordedUrl('');}
+  async function downloadAllClips(){
+    if(!generatedClips.length)return;
+    try{
+      setStatus('Preparing ZIP download…');setBusy(true);setProgress(0);
+      const zip=new JSZip();
+      for(let i=0;i<generatedClips.length;i++){
+        const clip=generatedClips[i];
+        const response=await fetch(clip.url);
+        if(!response.ok)throw new Error('Could not read clip '+clip.id);
+        zip.file(clip.name,await response.blob());
+        setProgress(Math.round(((i+1)/generatedClips.length)*70));
+      }
+      const blob=await zip.generateAsync({type:'blob'},meta=>setProgress(70+Math.round(meta.percent*.3)));
+      downloadBlob(blob,'clipmax-all-clips.zip');setStatus('All clips downloaded as ZIP.');
+    }catch(e){setError('Could not prepare the ZIP. Please download clips individually.');}
+    finally{setBusy(false);}
+  }
   function seek(t){if(videoRef.current)videoRef.current.currentTime=t;}
   return <div className="app-shell">
     <main className="main-content">
@@ -322,7 +340,7 @@ function App() {
         {!file&&<small className="fine-print">YouTube, Instagram and TikTok share links do not provide a downloadable video file to this app. Use an authorised direct MP4/WebM video URL. ClipMax will not bypass platform restrictions.</small>}
         {file&&<div className="source-status"><span className="status-dot"/>Loaded: {file.name} · {formatTime(duration)} · {Math.ceil(duration/30)} clips planned</div>}
         {busy&&<Progress status={status} progress={progress}/>}
-        {generatedClips.length>0&&<div className="suggestion-list">{generatedClips.map(c=><div className="suggestion" key={c.id}><div><b>Clip {c.id}</b><small>Starts at {formatTime(c.start)} · 30-second segment (last may be shorter)</small></div><a className="download-button" href={c.url} download={c.name}><Download size={15}/> Download</a></div>)}</div>}
+        {generatedClips.length>0&&<><div className="source-status"><span className="status-dot"/>{generatedClips.length} clips created successfully.</div><button className="export-button" disabled={busy} onClick={downloadAllClips}><Download size={17}/> Download all clips (ZIP)</button><div className="suggestion-list">{generatedClips.map(c=><div className="suggestion" key={c.id}><div><b>Clip {c.id}</b><small>Starts at {formatTime(c.start)} · 30-second segment (last may be shorter)</small></div><a className="download-button" href={c.url} download={c.name}><Download size={15}/> Download</a></div>)}</div></>}
       </section>
       {file&&<div className="editor-card" style={{marginTop:20}}><div className="card-head"><div><div className="card-kicker">SOURCE VIDEO</div><h2>{file.name}</h2></div><span>{formatTime(duration)}</span></div><video ref={videoRef} src={videoUrl} controls onLoadedMetadata={e=>{const d=e.currentTarget.duration;setDuration(d);setEnd(String(Math.floor(d)));}} style={{width:'100%',borderRadius:12}}/></div>}
       <footer><span>© 2026 CLIPMAX AI</span><span>30-SECOND VIDEO CLIPS</span></footer>
