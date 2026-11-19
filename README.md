@@ -1,54 +1,57 @@
 # ClipMax AI
 
-A free-first, local-first video clipping workspace. The first release focuses on a practical browser-based cutter: choose a video, set start/end times, and export an MP4 clip.
+A free-first, local-first creator workspace. The browser app keeps source media on the user's device and uses open-source tooling rather than paid AI APIs.
 
-## Current features
+## Features in this release
 
-- Local video selection (the source file is not uploaded to an application server)
-- Video preview and duration detection
-- Start/end time trimming
-- MP4 export powered by FFmpeg WebAssembly
-- Download the finished clip to your device
-- Responsive desktop and mobile interface
+- **Video cutter:** import a local video, preview it, choose start/end times, and export MP4 with FFmpeg WebAssembly.
+- **Aspect-ratio presets:** original, vertical 9:16, square 1:1, and landscape 16:9.
+- **Highlight suggestions:** scan sampled video frames in-browser and suggest moments around visual scene changes. This is a heuristic, not semantic AI.
+- **Smart captions:** extract audio locally and run the free Whisper Tiny speech-recognition model in the browser; edit subtitle segments and export SRT.
+- **Screen/tab recording:** use the browser's display-capture permission and MediaRecorder, preview the WEBM recording, download it, or send it to the cutter.
+- **Responsive studio UI:** desktop and mobile navigation for each workspace tool.
 
 ## Run locally
 
-Requirements: Node.js 20 or newer and npm.
+Requirements: Node.js 20+ and npm.
 
 ```bash
 npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite.
-
-## Production build
+## Build
 
 ```bash
 npm run build
 npm run preview
 ```
 
-The production site is a static Vite app and can be deployed to Vercel with the default Vite framework preset and build command `npm run build`, output directory `dist`.
+Vercel settings: framework Vite, build command `npm run build`, output directory `dist`.
 
-## Privacy and processing
+## Local processing and free-use notes
 
-The selected video is read by the browser and processed with FFmpeg WebAssembly. The app does not send video files to a ClipMax backend. The FFmpeg engine is downloaded from the public unpkg CDN on first use, so an internet connection is needed to initialize it. Once loaded, video processing runs locally in the browser.
+- Video files are processed in the browser using FFmpeg WebAssembly. The app does not upload them to a ClipMax backend.
+- Whisper Tiny model files are downloaded from Hugging Face on first use, then inference runs in the browser. The initial model download needs internet; browser memory and CPU/GPU capability affect performance.
+- FFmpeg's WebAssembly runtime is fetched from the public unpkg CDN on first use.
+- Large video files may exceed available browser memory. The app currently limits source files to 1 GB, but practical limits are usually lower on phones.
+- No paid APIs, subscriptions, or API keys are required by the current app. Public model/CDN hosting is used for downloads.
 
-Large videos can use substantial device memory and processing time. This initial release limits input files to 1 GB; actual practical limits depend on the device and browser.
+## Honest feature boundaries
+
+- Highlight suggestions currently use frame-to-frame visual-change scoring. They are not a trained semantic highlight model.
+- Screen recording uses browser display capture. It is not a server-side RTMP ingest service.
+- YouTube, Twitch, and Instagram URLs are not treated as downloadable files. Any future integrations must use official, authorized APIs and follow each platform's terms and permissions.
+- A reliable public RTMP ingest pipeline and optional cloud worker need separately deployed streaming/processing infrastructure. They are not included in this browser-only release.
 
 ## Roadmap
 
-- Local transcription and subtitle generation
-- AI-assisted highlight suggestions
-- Timeline editing and aspect-ratio presets
-- Authorized integrations for creator-owned media
-- Optional self-hosted processing workers
+- Better scene and audio-aware highlight ranking
+- Subtitle styling and burned-in caption export
+- Multi-clip timeline, transitions, and audio controls
+- Official creator-account integrations where platform APIs permit
+- Optional self-hosted worker for users who operate their own infrastructure
 
-## Important source-access note
+## Privacy
 
-A public video URL is not automatically a downloadable media file. Integrations must use official APIs and respect each platform's permissions and terms. Live RTMP ingestion requires a server-side streaming component; it cannot be done by a browser-only page.
-
-## Cost promise
-
-ClipMax is designed to run without paid APIs, subscriptions, or hidden billing. This version uses open-source browser tooling and a public CDN for the FFmpeg runtime.
+ClipMax does not have a media-upload backend in this version. Media processing runs on-device. The app loads FFmpeg runtime assets and the optional Whisper model from public CDNs/model hosting; those requests download code/model assets, not the user's source video.
