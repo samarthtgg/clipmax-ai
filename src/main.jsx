@@ -311,7 +311,14 @@ function App() {
         <div className="universal-link-row"><input aria-label="Paste social media or video URL" type="url" placeholder="Paste YouTube, Instagram, TikTok or direct video link…" value={sourceUrl} onChange={e=>setSourceUrl(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleSourceUrl();}}/><button className="export-button" onClick={handleSourceUrl} disabled={linkLoading}>{linkLoading?<LoaderCircle className="spin" size={17}/>:<Sparkles size={17}/>} Check link</button></div>
         <div className="source-status"><span className="status-dot"/>{sourceStatus}</div>
         {sourceChecked&&<div className="link-create-action">
-          <button className="export-button" disabled={!sourceCanClip||!file||duration<30||busy} onClick={generateShortClips}>
+          <button className="export-button" disabled={busy} onClick={()=>{
+            if(!sourceCanClip||!file){
+              setSourceStatus('This link is only a preview; it does not provide the actual video file. ClipMax cannot create downloadable clips from this link. Import a video file you own or use an authorized direct MP4/WebM link.');
+              return;
+            }
+            if(duration<30){setSourceStatus('Please wait for the video to load and make sure it is at least 30 seconds long.');return;}
+            generateShortClips();
+          }}>
             {busy?<><LoaderCircle className="spin" size={17}/> Creating clips…</>:<><Scissors size={17}/> Create clips <span className="create-count">{clipCount} × 30 sec</span><ArrowDownToLine size={16}/></>}
           </button>
           {!sourceCanClip&&<small>Clip creation becomes available when the link provides an accessible video file. YouTube and social post links may show a preview, but do not provide the downloadable source to this app.</small>}
