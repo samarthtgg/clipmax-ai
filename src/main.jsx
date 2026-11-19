@@ -196,6 +196,21 @@ function App() {
   async function generateShortClips() {
     if(!file||!duration){setError('Choose a video and wait for it to finish loading first.');return;}
     if(duration<30){setError('This video is shorter than 30 seconds.');return;}
+    const backendUrl = import.meta.env.VITE_CLIPMAX_API_URL;
+    if(backendUrl){
+      setBusy(true);setProgress(0);setError('');setStatus('Uploading video to ClipMax backend…');
+      try{
+        const body=new FormData();body.append('video',file);body.append('ratio',ratio);
+        const response=await fetch(backendUrl.replace(/\\/$/,'')+'/api/clips',{method:'POST',body});
+        if(!response.ok){const problem=await response.json().catch(()=>({}));throw new Error(problem.error||'Backend processing failed.');}
+        setStatus('Downloading your generated clips…');setProgress(90);
+        const blob=await response.blob();
+        downloadBlob(blob,'clipmax-all-clips.zip');
+        setProgress(100);setStatus('Backend created your clips. ZIP download started.');
+      }catch(e){setError(e.message||'Backend processing failed.');setStatus('Backend processing did not finish');}
+      finally{setBusy(false);}
+      return;
+    }
     setBusy(true);setProgress(0);setError('');setGeneratedClips([]);
     let ff,inputName;
     try{
