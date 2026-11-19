@@ -314,21 +314,17 @@ function App() {
         <div className="universal-link-row"><input aria-label="Paste social media or video URL" type="url" placeholder="Paste YouTube, Instagram, TikTok or direct video link…" value={sourceUrl} onChange={e=>setSourceUrl(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')handleSourceUrl();}}/><button className="export-button" onClick={handleSourceUrl} disabled={linkLoading}>{linkLoading?<LoaderCircle className="spin" size={17}/>:<Sparkles size={17}/>} Check link</button></div>
         <div className="source-status"><span className="status-dot"/>{sourceStatus}</div>
         {sourceChecked&&<div className="link-create-action">
-          <button className="export-button" disabled={busy} onClick={()=>{
-            if(!sourceCanClip||!file){
-              setSourceStatus('This link is only a preview; it does not provide the actual video file. ClipMax cannot create downloadable clips from this link. Import a video file you own or use an authorized direct MP4/WebM link.');
-              return;
-            }
+          {sourceCanClip&&file&&<button className="export-button" disabled={busy||!duration||duration<30} onClick={()=>{
             if(duration<30){setSourceStatus('Please wait for the video to load and make sure it is at least 30 seconds long.');return;}
             generateShortClips();
           }}>
-            {busy?<><LoaderCircle className="spin" size={17}/> Creating clips…</>:<><Scissors size={17}/> Create clips <span className="create-count">{clipCount} × 30 sec</span><ArrowDownToLine size={16}/></>}
-          </button>
+            {busy?<><LoaderCircle className="spin" size={17}/> Creating clips…</>:<><Scissors size={17}/> Create all clips <span className="create-count">30 sec each</span><ArrowDownToLine size={16}/></>}
+          </button>}
           {!sourceCanClip&&<small>Clip creation becomes available when the link provides an accessible video file. YouTube and social post links may show a preview, but do not provide the downloadable source to this app.</small>}
           {sourceCanClip&&file&&duration>0&&duration<30&&<small>This source is shorter than 30 seconds. Choose a longer video.</small>}
           {sourceCanClip&&file&&duration===0&&<small>Loading video details…</small>}
         </div>}
-        <div className="link-feature-row"><span><Check size={14}/> 9:16 vertical output</span><span><Check size={14}/> 5–10 clips</span><span><Check size={14}/> 30 sec target</span><span><LockKeyhole size={14}/> Local processing</span></div>
+        <div className="link-feature-row"><span><Check size={14}/> 9:16 vertical output</span><span><Check size={14}/> All 30-sec segments</span><span><Check size={14}/> 30 sec target</span><span><LockKeyhole size={14}/> Local processing</span></div>
       </section><section className="steps"><div className="step active-step"><span>01</span><div><b>Import</b><small>Choose a video</small></div></div><div className="step-line"/><div className={file?'step active-step':'step'}><span>02</span><div><b>Trim</b><small>Pick your moment</small></div></div><div className="step-line"/><div className={outputUrl?'step active-step':'step'}><span>03</span><div><b>Export</b><small>Save your clip</small></div></div></section>
         <section className="workspace-grid"><div className="editor-card"><div className="card-head"><div><div className="card-kicker">01 — SOURCE VIDEO</div><h2>Bring your video</h2></div>{file&&<button className="change-file" onClick={()=>inputRef.current?.click()}><FolderOpen size={15}/> Change</button>}</div><input ref={inputRef} className="hidden-input" type="file" accept="video/*" onChange={e=>chooseFile(e.target.files?.[0])}/>{!file?<><button className="dropzone" onClick={()=>inputRef.current?.click()} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();chooseFile(e.dataTransfer.files?.[0]);}}><span className="upload-icon"><Upload size={23}/></span><strong>Drop your video here</strong><span>or <u>browse files</u> from your device</span><small>MP4, MOV, WEBM · Up to 1 GB</small></button><div className="link-import"><div className="link-import-label">OR PASTE A DIRECT VIDEO LINK</div><div className="link-import-row"><input aria-label="Direct video URL" type="url" placeholder="https://example.com/video.mp4" value={videoLink} onChange={e=>setVideoLink(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')loadVideoLink();}}/><button className="change-file" onClick={loadVideoLink} disabled={linkLoading}>{linkLoading?<LoaderCircle className="spin" size={14}/>:<Video size={14}/>} {linkLoading?'Loading…':'Load link'}</button></div><small>Direct video-file URLs only. The host must allow browser access.</small></div><div className="youtube-import">
           <div className="link-import-label">OR PREVIEW A YOUTUBE VIDEO</div>
