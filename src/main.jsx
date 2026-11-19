@@ -63,7 +63,8 @@ function App() {
   const [duration,setDuration] = useState(0), [start,setStart] = useState('0'), [end,setEnd] = useState('');
   const [busy,setBusy] = useState(false), [progress,setProgress] = useState(0), [status,setStatus] = useState('Ready when you are');
   const [error,setError] = useState(''), [outputUrl,setOutputUrl] = useState(''), [outputName,setOutputName] = useState('');
-  const [engineReady,setEngineReady] = useState(false), [ratio,setRatio] = useState('original');
+  const [engineReady,setEngineReady] = useState(false), [ratio,setRatio] = useState('9:16');
+  const [clipCount,setClipCount] = useState(5), [generatedClips,setGeneratedClips] = useState([]);
   const [highlights,setHighlights] = useState([]), [captions,setCaptions] = useState([]);
   const [transcribing,setTranscribing] = useState(false), [modelProgress,setModelProgress] = useState('');
   const [recording,setRecording] = useState(false), [recordSeconds,setRecordSeconds] = useState(0);
@@ -80,7 +81,7 @@ function App() {
     if(!f)return;
     if(!f.type.startsWith('video/')) {setError('Choose a video file.');return;}
     if(f.size>1024*1024*1024){setError('This browser version supports files up to 1 GB.');return;}
-    setFile(f); setVideoUrl(URL.createObjectURL(f)); setDuration(0); setStart('0'); setEnd('');
+    setFile(f); setVideoUrl(URL.createObjectURL(f)); setDuration(0); setStart('0'); setEnd(''); setGeneratedClips([]);
     setStatus('Video ready to edit'); setTab('cutter');
   }
   function selectYoutubeSource() {
@@ -158,6 +159,38 @@ function App() {
       setStatus('Your clip is ready');
     } catch(e){setError(e.message||'Export failed. Try a shorter or smaller video.');setStatus('Export did not finish');}
     finally {if(ff&&inputName)await ff.deleteFile(inputName).catch(()=>{});if(ff)await ff.deleteFile(outputFile).catch(()=>{});setBusy(false);}
+  }
+  async function generateShortClips() {
+    if(!file||!duration){setError('Choose a video and wait for it to finish loading first.');return;}
+    if(duration<30){setError('This video is shorter than 30 seconds.');return;}
+    setBusy(true);setProgress(0);setError('');setGeneratedClips([]);
+    let ff,inputName;
+    try{
+      ff=await loadEngine();
+      const ext=(file.name.split('.').pop()||'mp4').toLowerCase().replace(/[^a-z0-9]/g,'')||'mp4';
+      inputName='clipmax-auto-source.'+ext;
+      await ff.writeFile(inputName,await fetchFile(file));
+      const count=Math.min(10,Math.max(5,Number(clipCount)||5));
+      const maxStart=Math.max(0,duration-30);
+      const starts=Array.from({length:count},(_,i)=>count===1?0:Math.round((maxStart*i/(count-1))*10)/10);
+      const results=[];
+      for(let i=0;i<starts.length;i++){
+        const out='clipmax-short-'+(i+1)+'.mp4';
+        const args=['-ss',String(starts[i]),'-i',inputName,'-t','30','-map','0:v:0','-map','0:a?'];
+        if(ratio==='9:16')args.push('-vf','scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920');
+        else if(ratio==='1:1')args.push('-vf','scale=1080:1080:force_original_aspect_ratio=increase,crop=1080:1080');
+        else if(ratio==='16:9')args.push('-vf','scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080');
+        args.push('-c:v','libx264','-preset','ultrafast','-crf','23','-c:a','aac','-movflags','+faststart',out);
+        setStatus('Creating short clip '+(i+1)+' of '+count+'…');
+        await ff.exec(args);
+        const data=await ff.readFile(out);
+        results.push({id:i+1,start:starts[i],url:URL.createObjectURL(new Blob([data],{type:'video/mp4'})),name:'clipmax-short-'+(i+1)+'.mp4'});
+        await ff.deleteFile(out).catch(()=>{});
+        setProgress(Math.round((i+1)/count*100));
+      }
+      setGeneratedClips(results);setStatus(count+' short clips are ready');
+    }catch(e){setError(e.message||'Could not generate the short clips. Try a smaller video.');setStatus('Clip generation did not finish');}
+    finally{if(ff&&inputName)await ff.deleteFile(inputName).catch(()=>{});setBusy(false);}
   }
   async function detectHighlights() {
     if(!file||!analysisVideoRef.current)return;
@@ -250,6 +283,7 @@ function App() {
           <small>For export, select the original video file you own or are authorized to edit. ClipMax applies your chosen start/end times locally.</small>
         </div></>:<div className="video-wrap"><video ref={videoRef} src={videoUrl} controls onLoadedMetadata={e=>{const d=e.currentTarget.duration;setDuration(d);if(applyYoutubeRange){const from=Math.min(d,Math.max(0,Number(youtubeStart)||0));const to=Math.min(d,Math.max(from+0.1,Number(youtubeEnd)||from+30));setStart(String(from));setEnd(String(to));e.currentTarget.currentTime=from;setApplyYoutubeRange(false);}else{setEnd(String(Math.floor(d)));}}}/><div className="video-meta"><span><Film size={14}/>{file.name}</span><span>{formatTime(duration)} · {(file.size/1048576).toFixed(1)} MB</span></div></div>}<div className="privacy-note"><LockKeyhole size={14}/><span><b>Local processing.</b> Your selected video is not uploaded to ClipMax servers.</span></div></div>
         <div className="editor-card trim-card"><div className="card-head"><div><div className="card-kicker">02 — MAKE IT YOURS</div><h2>Trim your moment</h2></div><span className="tiny-chip"><Scissors size={12}/> PRECISE CUT</span></div><div className="trim-preview"><div className="trim-track"><div className="track-fill" style={{left:duration?`${Math.max(0,Number(start))/duration*100}%`:'0%',right:duration?`${100-Math.min(100,Number(end||duration)/duration*100)}%`:'0%'}}/><span className="track-start"/><span className="track-end"/></div><div className="track-labels"><span>START · {formatTime(Number(start))}</span><span>END · {formatTime(Number(end||duration))}</span></div></div><div className="time-fields"><label><span>START TIME</span><div><input type="number" min="0" step=".1" value={start} disabled={(!file&&!youtubeId)||busy} onChange={e=>{setStart(e.target.value);if(file)seek(e.target.value);}}/><small>sec</small></div></label><span className="time-divider">→</span><label><span>END TIME</span><div><input type="number" min="0" step=".1" value={end} disabled={(!file&&!youtubeId)||busy} onChange={e=>{setEnd(e.target.value);if(file)seek(e.target.value);}}/><small>sec</small></div></label></div><div className="duration-row"><span>CLIP LENGTH</span><b>{formatTime(Math.max(0,Number(end||duration)-Number(start)))}</b></div><button className="export-button" disabled={(!file&&!youtubeId)||busy||Boolean(file&&!duration)} onClick={()=>{if(!file&&youtubeId){selectYoutubeSource();return;}exportClip();}}>{busy?<><LoaderCircle className="spin" size={17}/> Working…</>:!file&&youtubeId?<><Scissors size={17}/> Choose source video to create clip <ArrowDownToLine size={16}/></>:<><Scissors size={17}/> Create my clip <ArrowDownToLine size={16}/></>}</button>{busy&&<Progress status={status} progress={progress}/>}<p className="engine-note"><Gauge size={14}/>{engineReady?'Local engine ready':'Free browser-based video engine'}</p></div></section>
+        {file&&duration>=30&&<section className="editor-card feature-panel auto-clips-panel"><PanelHead icon={Sparkles} kicker="AUTOMATIC SHORTS" title="Generate short clips" subtitle="Create 5–10 separate 30-second MP4 clips from your selected source video."/><div className="feature-actions"><label className="clip-count-control">NUMBER OF CLIPS <select value={clipCount} onChange={e=>setClipCount(Number(e.target.value))}><option value={5}>5 clips</option><option value={6}>6 clips</option><option value={7}>7 clips</option><option value={8}>8 clips</option><option value={9}>9 clips</option><option value={10}>10 clips</option></select></label><button className="export-button" disabled={busy||!file||duration<30} onClick={generateShortClips}>{busy?<><LoaderCircle className="spin"/> Generating…</>:<><Sparkles size={17}/> Generate clips</>}</button></div><p className="fine-print">Exports are 9:16 vertical by default. This first version splits the video into evenly spaced 30-second sections; it does not yet understand the video's meaning or automatically rank viral moments.</p>{generatedClips.length>0&&<div className="suggestion-list">{generatedClips.map(c=><div className="suggestion" key={c.id}><div><b>Short clip {c.id}</b><small>30 seconds · starts at {formatTime(c.start)} · MP4 vertical</small></div><a className="download-button" href={c.url} download={c.name}><Download size={15}/> Download</a></div>)}</div>}</section>}
         {outputUrl&&<Result url={outputUrl} name={outputName}/>}</>}
       {tab==='highlights'&&<section className="editor-card feature-panel"><PanelHead icon={Sparkles} kicker="AI-ASSISTED MOMENTS" title="Find the interesting parts" subtitle="Scan frames locally for scene changes and suggest moments worth clipping."/><div className="feature-actions"><button className="export-button" disabled={!file||busy} onClick={detectHighlights}>{busy?<><LoaderCircle className="spin"/> Scanning…</>:<><WandSparkles size={17}/> Find highlights</>}</button><span className="engine-note">Visual scene-change heuristic · no cloud API</span></div>{highlights.length>0&&<div className="suggestion-list">{highlights.map(h=><div className="suggestion" key={h.id}><div><b>Suggested moment {h.id}</b><small>{formatTime(h.start)} – {formatTime(h.end)} · visual activity score {h.score}</small></div><button className="change-file" onClick={()=>{setStart(String(h.start));setEnd(String(h.end));setTab('cutter');}}>Use this clip</button></div>)}</div>}<p className="fine-print">These are heuristic suggestions, not semantic AI understanding. Results depend on lighting, motion and the source video.</p></section>}
       {tab==='captions'&&<section className="editor-card feature-panel"><PanelHead icon={Captions} kicker="LOCAL SPEECH-TO-TEXT" title="Create and edit captions" subtitle="Run the free Whisper Tiny model in your browser, then edit and export subtitle files."/><div className="feature-actions"><button className="export-button" disabled={!file||transcribing} onClick={transcribe}>{transcribing?<><LoaderCircle className="spin"/> Transcribing…</>:<><Mic2 size={17}/> Generate captions</>}</button><span className="engine-note">{modelProgress||'First run downloads a model; no paid API required.'}</span></div>{captions.length>0&&<><div className="caption-toolbar"><b>{captions.length} subtitle segments</b><div><label className="change-file import-srt">Import SRT<input type="file" accept=".srt,text/plain" onChange={async e=>{const f=e.target.files?.[0];if(f){setCaptions(parseSrt(await f.text()));e.target.value="";}}}/></label><button className="change-file" onClick={addCaption}><Plus size={14}/> Add line</button><button className="change-file" onClick={()=>downloadBlob(new Blob([makeSrt(captions)],{type:'text/plain'}), 'clipmax-captions.srt')}><Download size={14}/> Export SRT</button></div></div><div className="caption-list">{captions.map(c=><div className="caption-row" key={c.id}><div className="caption-times"><input type="number" step=".1" value={c.start} onChange={e=>updateCaption(c.id,'start',Number(e.target.value))}/><span>to</span><input type="number" step=".1" value={c.end} onChange={e=>updateCaption(c.id,'end',Number(e.target.value))}/></div><textarea value={c.text} onChange={e=>updateCaption(c.id,'text',e.target.value)}/><button className="icon-button" onClick={()=>setCaptions(cs=>cs.filter(x=>x.id!==c.id))}><Trash2 size={15}/></button></div>)}</div></> }<p className="fine-print">Whisper Tiny is a free downloadable model. Model files are fetched from Hugging Face on first use; transcription runs in your browser and may be slow on phones. Model availability and memory depend on your device.</p></section>}
